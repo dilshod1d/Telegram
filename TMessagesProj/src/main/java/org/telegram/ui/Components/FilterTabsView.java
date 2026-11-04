@@ -67,7 +67,7 @@ public class FilterTabsView extends FrameLayout {
     }
 
     public int getStableId(int selectedType) {
-        return positionToStableId.get(selectedType, -1);
+        return positionToStableId.get(idToPosition.get(selectedType, -1), -1);
     }
 
     public boolean selectTabWithStableId(int stableId) {
@@ -107,6 +107,7 @@ public class FilterTabsView extends FrameLayout {
         public int titleWidth;
         public int counter;
         public boolean isDefault;
+        public boolean isFixed;
         public boolean isLocked;
 
         public Tab(int i, String t) {
@@ -240,7 +241,7 @@ public class FilterTabsView extends FrameLayout {
         @SuppressLint("DrawAllocation")
         @Override
         protected void onDraw(Canvas canvas) {
-            boolean reorderEnabled = true;
+            boolean reorderEnabled = !currentTab.isFixed;
             boolean showRemove = !currentTab.isDefault && reorderEnabled;
             if (reorderEnabled && editingAnimationProgress != 0) {
                 canvas.save();
@@ -1023,6 +1024,9 @@ public class FilterTabsView extends FrameLayout {
             }
             TabView tabView = (TabView) view;
             if (isEditing) {
+                if (tabView.currentTab.isFixed) {
+                    return;
+                }
                 if (position != 0) {
                     int side = AndroidUtilities.dp(6);
                     if (tabView.rect.left - side < x && tabView.rect.right + side > x) {
@@ -1172,6 +1176,11 @@ public class FilterTabsView extends FrameLayout {
         tabs.add(tab);
     }
 
+    public void addFixedTab(int id, String text) {
+        addTab(id, id, text, false, false);
+        tabs.get(tabs.size() - 1).isFixed = true;
+    }
+
     public int getTabsCount() {
         return tabs.size();
     }
@@ -1233,8 +1242,12 @@ public class FilterTabsView extends FrameLayout {
     private void updateTabsWidths() {
         positionToX.clear();
         positionToWidth.clear();
+        positionToId.clear();
+        idToPosition.clear();
         int xOffset = AndroidUtilities.dp(7);
         for (int a = 0, N = tabs.size(); a < N; a++) {
+            positionToId.put(a, tabs.get(a).id);
+            idToPosition.put(tabs.get(a).id, a);
             int tabWidth = tabs.get(a).getWidth(false);
             positionToWidth.put(a, tabWidth);
             positionToX.put(a, xOffset + additionalTabWidth / 2);
@@ -1608,6 +1621,11 @@ public class FilterTabsView extends FrameLayout {
             if (idx1 < 0 || idx2 < 0 || idx1 >= count || idx2 >= count) {
                 return;
             }
+            if (tabs.get(fromIndex).isFixed || tabs.get(toIndex).isFixed) {
+                return;
+            }
+            idx1 = tabs.get(fromIndex).id;
+            idx2 = tabs.get(toIndex).id;
             ArrayList<MessagesController.DialogFilter> filters = MessagesController.getInstance(UserConfig.selectedAccount).getDialogFilters();
             MessagesController.DialogFilter filter1 = filters.get(idx1);
             MessagesController.DialogFilter filter2 = filters.get(idx2);
@@ -1658,44 +1676,14 @@ public class FilterTabsView extends FrameLayout {
         }
 
         public void moveElementToStart(int theIndex) {
-            int count = tabs.size();
-            if (theIndex < 0 || theIndex >= count) {
-                return;
-            }
-            ArrayList<MessagesController.DialogFilter> filters = MessagesController.getInstance(UserConfig.selectedAccount).getDialogFilters();
-            int temp = positionToStableId.get(theIndex),
-                temp2 = tabs.get(theIndex).id;
-            for (int i = theIndex - 1; i >= 0; --i) {
-//                notifyItemMoved(i, i + 1);
-                positionToStableId.put(i + 1, positionToStableId.get(i));
-            }
-            MessagesController.DialogFilter filter = filters.remove(theIndex);
-            filter.order = 0;
-            filters.add(0, filter);
-            positionToStableId.put(0, temp);
-            tabs.add(0, tabs.remove(theIndex));
-            tabs.get(0).id = temp2;
-            for (int i = 0; i <= theIndex; ++i) {
-                tabs.get(i).id = i;
-                filters.get(i).order = i;
-            }
-            for (int i = 0; i <= theIndex; ++i) {
-                if (currentPosition == i) {
-                    currentPosition = selectedTabId = i == theIndex ? 0 : i + 1;
-                }
-                if (previousPosition == i) {
-                    previousPosition = previousId = i == theIndex ? 0 : i + 1;
+            for (int i = theIndex - 1; i >= 0; i--) {
+                if (!tabs.get(i).isFixed) {
+                    swapElements(theIndex, i);
+                    theIndex = i;
                 }
             }
-            notifyItemMoved(theIndex, 0);
-
-            delegate.onPageReorder(tabs.get(theIndex).id, temp2);
-
-            updateTabsWidths();
-
-            orderChanged = true;
-            listView.setItemAnimator(itemAnimator);
         }
+
     }
 
     public class TouchHelperCallback extends ItemTouchHelper.Callback {
@@ -1707,6 +1695,10 @@ public class FilterTabsView extends FrameLayout {
 
         @Override
         public int getMovementFlags(RecyclerView recyclerView, RecyclerView.ViewHolder viewHolder) {
+            int position = viewHolder.getAdapterPosition();
+            if (position < 0 || tabs.get(position).isFixed) {
+                return makeMovementFlags(0, 0);
+            }
             if (MessagesController.getInstance(UserConfig.selectedAccount).premiumFeaturesBlocked() && (!isEditing || (viewHolder.getAdapterPosition() == 0 && tabs.get(0).isDefault && !UserConfig.getInstance(UserConfig.selectedAccount).isPremium()))) {
                 return makeMovementFlags(0, 0);
             }
@@ -1715,6 +1707,10 @@ public class FilterTabsView extends FrameLayout {
 
         @Override
         public boolean onMove(RecyclerView recyclerView, RecyclerView.ViewHolder source, RecyclerView.ViewHolder target) {
+            if (source.getAdapterPosition() < 0 || target.getAdapterPosition() < 0 ||
+                    tabs.get(source.getAdapterPosition()).isFixed || tabs.get(target.getAdapterPosition()).isFixed) {
+                return false;
+            }
             if (MessagesController.getInstance(UserConfig.selectedAccount).premiumFeaturesBlocked() && ((source.getAdapterPosition() == 0 || target.getAdapterPosition() == 0) && !UserConfig.getInstance(UserConfig.selectedAccount).isPremium())) {
                 return false;
             }

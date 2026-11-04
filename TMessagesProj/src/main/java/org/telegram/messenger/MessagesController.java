@@ -143,6 +143,39 @@ public class MessagesController extends BaseController implements NotificationCe
     public ArrayList<TLRPC.Dialog> dialogsForBlock = new ArrayList<>();
     public ArrayList<TLRPC.Dialog> dialogsGroupsOnly = new ArrayList<>();
     public DialogFilter[] selectedDialogFilter = new DialogFilter[2];
+    private final ArrayList<TLRPC.Dialog> peopleDialogs = new ArrayList<>();
+    private volatile boolean peopleDialogsDirty = true;
+
+    public ArrayList<TLRPC.Dialog> getPeopleDialogs() {
+        if (peopleDialogsDirty) {
+            peopleDialogsDirty = false;
+            peopleDialogs.clear();
+            for (TLRPC.Dialog dialog : getDialogs(0)) {
+                long userId = dialog.id;
+                if (DialogObject.isEncryptedDialog(userId)) {
+                    TLRPC.EncryptedChat chat = getEncryptedChat(DialogObject.getEncryptedChatId(userId));
+                    userId = chat != null ? chat.user_id : 0;
+                }
+                TLRPC.User user = getUser(userId);
+                if (dialog instanceof TLRPC.TL_dialog && dialog.folder_id == 0 && user != null && !user.self &&
+                        !user.bot && !user.support && userId != 489000 && !UserObject.isService(userId) &&
+                        !UserObject.isReplyUser(userId) && !UserObject.isAnonymous(user)) {
+                    peopleDialogs.add(dialog);
+                }
+            }
+        }
+        return peopleDialogs;
+    }
+
+    public int getPeopleUnreadCount() {
+        int count = 0;
+        for (TLRPC.Dialog dialog : getPeopleDialogs()) {
+            if (getDialogUnreadCount(dialog) > 0 || dialog.unread_mark || dialog.unread_mentions_count > 0) {
+                count++;
+            }
+        }
+        return count;
+    }
     private int dialogsLoadedTillDate = Integer.MAX_VALUE;
     public int unreadUnmutedDialogs;
     public ConcurrentHashMap<Long, Integer> dialogs_read_inbox_max = new ConcurrentHashMap<>(100, 1.0f, 2);
@@ -5847,6 +5880,8 @@ public class MessagesController extends BaseController implements NotificationCe
         clearingHistoryDialogs.clear();
         lastPrintingStringCount = 0;
         selectedDialogFilter[0] = selectedDialogFilter[1] = null;
+        peopleDialogs.clear();
+        peopleDialogsDirty = true;
         dialogFilters.clear();
         dialogFiltersById.clear();
         loadingSuggestedFilters = false;
@@ -6094,6 +6129,7 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     public boolean putUser(TLRPC.User user, boolean fromCache, boolean force) {
+        peopleDialogsDirty = true;
         if (user == null) {
             return false;
         }
@@ -19910,6 +19946,7 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     public void sortDialogs(LongSparseArray<TLRPC.Chat> chatsDict) {
+        peopleDialogsDirty = true;
         if (chatsDict == null && ApplicationLoader.mainInterfacePaused) {
             return;
         }

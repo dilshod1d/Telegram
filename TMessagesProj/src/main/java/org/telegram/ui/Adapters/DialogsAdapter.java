@@ -1381,6 +1381,9 @@ public class DialogsAdapter extends RecyclerListView.SelectionAdapter implements
             array = new ArrayList<>();
         }
         dialogsCount = array.size();
+        if (dialogsType == DialogsActivity.DIALOGS_TYPE_PEOPLE) {
+            onlineContacts = null;
+        }
         isEmpty = false;
         if (dialogsCount == 0 && parentFragment.isArchive()) {
             itemInternals.add(new ItemInternal(VIEW_TYPE_ARCHIVE_FULLSCREEN));

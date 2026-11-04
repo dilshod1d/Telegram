@@ -316,7 +316,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         }
 
         public boolean isDefaultDialogType() {
-            return dialogsType == DIALOGS_TYPE_DEFAULT || dialogsType == 7 || dialogsType == 8;
+            return dialogsType == DIALOGS_TYPE_DEFAULT || dialogsType == DIALOGS_TYPE_PEOPLE || dialogsType == 7 || dialogsType == 8;
         }
 
         boolean updating;
@@ -3413,7 +3413,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                     }
 
                     ArrayList<MessagesController.DialogFilter> dialogFilters = getMessagesController().getDialogFilters();
-                    if (!tab.isDefault && (tab.id < 0 || tab.id >= dialogFilters.size())) {
+                    if (tab.id != PEOPLE_TAB_ID && !tab.isDefault && (tab.id < 0 || tab.id >= dialogFilters.size())) {
                         return;
                     }
                     isFirstTab = tab.id == filterTabsView.getFirstTabId();
@@ -3460,6 +3460,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
 
                 @Override
                 public int getTabCounter(int tabId) {
+                    if (tabId == PEOPLE_TAB_ID) {
+                        return getMessagesController().getPeopleUnreadCount();
+                    }
                     if (initialDialogsType == DIALOGS_TYPE_FORWARD) {
                         return 0;
                     }
@@ -3475,6 +3478,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
 
                 @Override
                 public boolean didSelectTab(FilterTabsView.TabView tabView, boolean selected) {
+                    if (tabView.getId() == PEOPLE_TAB_ID) {
+                        return false;
+                    }
                     if (initialDialogsType != DIALOGS_TYPE_DEFAULT) {
                         return false;
                     }
@@ -3601,6 +3607,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
 
                 @Override
                 public void onDeletePressed(int id) {
+                    if (id == PEOPLE_TAB_ID) {
+                        return;
+                    }
                     showDeleteAlert(getMessagesController().getDialogFilters().get(id));
                 }
             });
@@ -6535,7 +6544,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         ArrayList<MessagesController.DialogFilter> filters = getMessagesController().getDialogFilters();
         for (int i = 0; i < filters.size(); ++i) {
             if (filters.get(i).id == fid) {
-                index = i;
+                index = i == 0 || initialDialogsType != DIALOGS_TYPE_DEFAULT ? i : i + 1;
                 break;
             }
         }
@@ -6553,11 +6562,16 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             viewPages[a].listView.stopScroll();
         }
         int a = animated ? 1 : 0;
-        if (viewPages[a].selectedType < 0 || viewPages[a].selectedType >= getMessagesController().getDialogFilters().size()) {
+        ArrayList<MessagesController.DialogFilter> filters = getMessagesController().getDialogFilters();
+        boolean isImplicitAll = filters.isEmpty() && viewPages[a].selectedType == 0;
+        if (viewPages[a].selectedType != PEOPLE_TAB_ID && !isImplicitAll && (viewPages[a].selectedType < 0 || viewPages[a].selectedType >= filters.size())) {
             return;
         }
-        MessagesController.DialogFilter filter = getMessagesController().getDialogFilters().get(viewPages[a].selectedType);
-        if (filter.isDefault()) {
+        MessagesController.DialogFilter filter = viewPages[a].selectedType == PEOPLE_TAB_ID || isImplicitAll ? null : filters.get(viewPages[a].selectedType);
+        if (viewPages[a].selectedType == PEOPLE_TAB_ID) {
+            viewPages[a].dialogsType = DIALOGS_TYPE_PEOPLE;
+            viewPages[a].listView.setScrollEnabled(true);
+        } else if (filter == null || filter.isDefault()) {
             viewPages[a].dialogsType = initialDialogsType;
             viewPages[a].listView.updatePullState();
         } else {
@@ -6569,7 +6583,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             viewPages[a].listView.setScrollEnabled(true);
             getMessagesController().selectDialogFilter(filter, viewPages[a].dialogsType == 8 ? 1 : 0);
         }
-        viewPages[1].isLocked = filter.locked;
+        viewPages[1].isLocked = filter != null && filter.locked;
 
         viewPages[a].dialogsAdapter.setDialogsType(viewPages[a].dialogsType);
         viewPages[a].layoutManager.scrollToPositionWithOffset(viewPages[a].dialogsType == DIALOGS_TYPE_DEFAULT && hasHiddenArchive() && viewPages[a].archivePullViewState == ARCHIVE_ITEM_STATE_HIDDEN ? 1 : 0, (int) scrollYOffset);
@@ -6603,7 +6617,8 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             filterOptions = null;
         }
         ArrayList<MessagesController.DialogFilter> filters = getMessagesController().getDialogFilters();
-        if (filters.size() > 1) {
+        boolean showPeople = initialDialogsType == DIALOGS_TYPE_DEFAULT && folderId == 0 && !onlySelect;
+        if (filters.size() > 1 || showPeople) {
             if (force || filterTabsView.getVisibility() != View.VISIBLE) {
                 boolean animatedUpdateItems = animated;
                 if (filterTabsView.getVisibility() != View.VISIBLE) {
@@ -6614,11 +6629,6 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 updateFilterTabsVisibility(animated);
                 int id = filterTabsView.getCurrentTabId();
                 int stableId = filterTabsView.getCurrentTabStableId();
-                boolean selectWithStableId = false;
-                if (id != filterTabsView.getDefaultTabId() && id >= filters.size()) {
-                    filterTabsView.resetTabId();
-                    selectWithStableId = true;
-                }
                 filterTabsView.removeTabs();
                 for (int a = 0, N = filters.size(); a < N; a++) {
                     if (filters.get(a).isDefault()) {
@@ -6626,25 +6636,26 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                     } else {
                         filterTabsView.addTab(a, filters.get(a).localId, filters.get(a).name, false, filters.get(a).locked);
                     }
+                    if (a == 0 && showPeople) {
+                        filterTabsView.addFixedTab(PEOPLE_TAB_ID, LocaleController.getString(R.string.FilterPeople));
+                    }
+                }
+                if (filters.isEmpty() && showPeople) {
+                    filterTabsView.addTab(0, 0, LocaleController.getString(R.string.FilterAllChats), true, false);
+                    filterTabsView.addFixedTab(PEOPLE_TAB_ID, LocaleController.getString(R.string.FilterPeople));
                 }
                 if (stableId >= 0) {
-                    if (selectWithStableId) {
-                        if (!filterTabsView.selectTabWithStableId(stableId)) {
-                            while (id >= 0 && !filterTabsView.selectTabWithStableId(filterTabsView.getStableId(id))) {
-                                id--;
-                            }
-                            if (id < 0) {
-                                id = 0;
-                            }
-                        }
+                    if (!filterTabsView.selectTabWithStableId(stableId)) {
+                        filterTabsView.selectTabWithStableId(filters.isEmpty() || filters.get(0).isDefault() ? 0 : filters.get(0).localId);
                     }
-                    if (filterTabsView.getStableId(viewPages[0].selectedType) != stableId) {
+                    id = filterTabsView.getCurrentTabId();
+                    if (viewPages[0].selectedType != id) {
                         updateCurrentTab = true;
                         viewPages[0].selectedType = id;
                     }
                 }
                 for (int a = 0; a < viewPages.length; a++) {
-                    if (viewPages[a].selectedType >= filters.size()) {
+                    if (!filters.isEmpty() && viewPages[a].selectedType != PEOPLE_TAB_ID && viewPages[a].selectedType >= filters.size()) {
                         viewPages[a].selectedType = filters.size() - 1;
                     }
                     viewPages[a].listView.setScrollingTouchSlop(RecyclerView.TOUCH_SLOP_PAGING);
@@ -7765,7 +7776,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             }
         }
         if (visibleItemCount > 0 && lastVisibleItem >= getDialogsArray(currentAccount, viewPage.dialogsType, folderId, dialogsListFrozen).size() - 10 ||
-                visibleItemCount == 0 && (viewPage.dialogsType == 7 || viewPage.dialogsType == 8) && !getMessagesController().isDialogsEndReached(folderId)) {
+                visibleItemCount == 0 && (viewPage.dialogsType == DIALOGS_TYPE_PEOPLE || viewPage.dialogsType == 7 || viewPage.dialogsType == 8) && !getMessagesController().isDialogsEndReached(folderId)) {
             loadFromCache = !getMessagesController().isDialogsEndReached(folderId);
             if (loadFromCache || !getMessagesController().isServerDialogsEndReached(folderId)) {
                 load = true;
@@ -10812,6 +10823,8 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         }
     }
 
+    public static final int PEOPLE_TAB_ID = Integer.MAX_VALUE;
+    public static final int DIALOGS_TYPE_PEOPLE = 16;
     public static final int DIALOGS_TYPE_DEFAULT = 0;
     public static final int DIALOGS_TYPE_BOT_SHARE = 1; // selecting group to write with inline bot query, including sharing a game
     public static final int DIALOGS_TYPE_ADD_USERS_TO = 2; // Chats + My channels + My groups
@@ -10837,7 +10850,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             return frozenDialogsList;
         }
         MessagesController messagesController = AccountInstance.getInstance(currentAccount).getMessagesController();
-        if (dialogsType == DIALOGS_TYPE_DEFAULT) {
+        if (dialogsType == DIALOGS_TYPE_PEOPLE) {
+            return messagesController.getPeopleDialogs();
+        } else if (dialogsType == DIALOGS_TYPE_DEFAULT) {
             return messagesController.getDialogs(folderId);
         } else if (dialogsType == DIALOGS_TYPE_WIDGET || dialogsType == DIALOGS_TYPE_IMPORT_HISTORY) {
             return messagesController.dialogsServerOnly;
