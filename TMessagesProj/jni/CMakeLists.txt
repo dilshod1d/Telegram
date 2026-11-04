@@ -23,6 +23,14 @@ else()
     enable_language(ASM_NASM)
 endif()
 
+# Legacy GNU archive tools from NDK 21 can crash on recent macOS hosts.
+# Select the bundled LLVM tools after enable_language restores cached tool paths.
+if (ANDROID AND CMAKE_HOST_APPLE AND CMAKE_AR MATCHES "-linux-android(eabi)?-ar$")
+    get_filename_component(NDK_ARCHIVER_DIR "${CMAKE_AR}" DIRECTORY)
+    set(CMAKE_AR "${NDK_ARCHIVER_DIR}/llvm-ar")
+    set(CMAKE_RANLIB "${NDK_ARCHIVER_DIR}/llvm-ranlib")
+endif()
+
 add_library(avutil STATIC IMPORTED)
 set_target_properties(avutil PROPERTIES IMPORTED_LOCATION ${CMAKE_HOME_DIRECTORY}/ffmpeg/${ANDROID_ABI}/libavutil.a)
 
