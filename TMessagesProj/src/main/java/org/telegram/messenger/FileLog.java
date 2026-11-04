@@ -168,6 +168,7 @@ public class FileLog {
             privateFields = new HashSet<>();
             privateFields.add("message");
             privateFields.add("phone");
+            privateFields.add("api_hash");
             privateFields.add("about");
             privateFields.add("status_text");
             privateFields.add("bytes");

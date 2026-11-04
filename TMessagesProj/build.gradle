@@ -63,6 +63,14 @@ dependencies {
 }
 
 def isWindows = String.valueOf(DefaultNativePlatform.currentOperatingSystem.toFamilyName() == OperatingSystemFamily.WINDOWS)
+def telegramApiId = getProps('TELEGRAM_API_ID')?.trim()
+def telegramApiHash = getProps('TELEGRAM_API_HASH')?.trim()
+if (telegramApiId || telegramApiHash) {
+    if (!(telegramApiId ==~ /[1-9][0-9]*/) || telegramApiId.length() > 10 ||
+            Long.parseLong(telegramApiId) > Integer.MAX_VALUE || !(telegramApiHash ==~ /[0-9a-fA-F]{32}/)) {
+        throw new GradleException('Set both TELEGRAM_API_ID (positive int) and TELEGRAM_API_HASH (32 hex characters) in local.properties.')
+    }
+}
 android {
     compileSdkVersion 34
     buildToolsVersion '34.0.0'
@@ -98,6 +106,9 @@ android {
     defaultConfig {
         minSdkVersion 19
         targetSdkVersion 34
+
+        buildConfigField 'int', 'TELEGRAM_API_ID', telegramApiId ?: '4'
+        buildConfigField 'String', 'TELEGRAM_API_HASH', '"' + (telegramApiHash ?: '014b35b6184100b085b0d0572f9b5103') + '"'
 
         vectorDrawables.generatedDensities = ['mdpi', 'hdpi', 'xhdpi', 'xxhdpi']
 
