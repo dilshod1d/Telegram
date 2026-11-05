@@ -28,6 +28,7 @@ import org.telegram.messenger.BuildVars;
 import org.telegram.messenger.CustomTabsCopyReceiver;
 import org.telegram.messenger.FileLog;
 import org.telegram.messenger.LocaleController;
+import org.telegram.messenger.LocalSafety;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
@@ -263,6 +264,25 @@ public class Browser {
     }
 
     public static void openUrl(final Context context, Uri uri, boolean _allowCustom, boolean tryTelegraph, boolean forceNotInternalForApps, Progress inCaseLoading, String browser, boolean allowIntent, boolean allowInAppBrowser, boolean forceRequest) {
+        if (context == null || uri == null) return;
+        int risk = LocalSafety.linkRisk(uri.toString());
+        if (risk != 0) {
+            final Uri checkedUri = uri;
+            int reason = risk == 1 ? R.string.LocalSafetyLinkLogin : risk == 2 ? R.string.LocalSafetyLinkDirection : R.string.LocalSafetyLinkMixed;
+            new AlertDialog.Builder(context)
+                    .setTitle(LocaleController.getString(R.string.LocalSafetyLinkTitle))
+                    .setMessage(LocaleController.getString(reason) + "\n\n" + LocaleController.formatString("LocalSafetyDestination", R.string.LocalSafetyDestination, LocalSafety.destination(uri.toString())) + "\n\n" + LocalSafety.displayUrl(uri.toString()))
+                    .setNegativeButton(LocaleController.getString(R.string.Cancel), (dialog, which) -> {
+                        if (inCaseLoading != null) inCaseLoading.end();
+                    })
+                    .setPositiveButton(LocaleController.getString(R.string.Open), (dialog, which) -> openUrlChecked(context, checkedUri, _allowCustom, tryTelegraph, forceNotInternalForApps, inCaseLoading, browser, allowIntent, allowInAppBrowser, forceRequest))
+                    .show();
+            return;
+        }
+        openUrlChecked(context, uri, _allowCustom, tryTelegraph, forceNotInternalForApps, inCaseLoading, browser, allowIntent, allowInAppBrowser, forceRequest);
+    }
+
+    private static void openUrlChecked(final Context context, Uri uri, boolean _allowCustom, boolean tryTelegraph, boolean forceNotInternalForApps, Progress inCaseLoading, String browser, boolean allowIntent, boolean allowInAppBrowser, boolean forceRequest) {
         if (context == null || uri == null) {
             return;
         }
@@ -305,7 +325,7 @@ public class Browser {
                             }
                         }
                         if (!ok) {
-                            openUrl(context, finalUri, allowCustom, false);
+                            openUrlChecked(context, finalUri, allowCustom, false, forceNotInternalForApps, inCaseLoading, browser, allowIntent, allowInAppBrowser, forceRequest);
                         }
                     }));
                     if (inCaseLoading != null) {

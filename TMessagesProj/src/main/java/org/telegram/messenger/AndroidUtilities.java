@@ -3984,6 +3984,10 @@ public class AndroidUtilities {
         }
         File f = null;
         String fileName = message.messageOwner.media != null ? FileLoader.getAttachFileName(document) : "";
+        if (LocalSafety.isApk(message.getFileName(), document.mime_type)) {
+            openForView(message, activity, parentFragment != null ? parentFragment.getResourceProvider() : null, false);
+            return;
+        }
         if (message.messageOwner.attachPath != null && message.messageOwner.attachPath.length() != 0) {
             f = new File(message.messageOwner.attachPath);
         }
@@ -4065,6 +4069,25 @@ public class AndroidUtilities {
     }
 
     public static boolean openForView(File f, String fileName, String mimeType, final Activity activity, Theme.ResourcesProvider resourcesProvider, boolean restrict) {
+        return openForView(f, fileName, mimeType, activity, resourcesProvider, restrict, false);
+    }
+
+    private static boolean openForView(File f, String fileName, String mimeType, final Activity activity, Theme.ResourcesProvider resourcesProvider, boolean restrict, boolean apkConfirmed) {
+        if (f != null && f.exists() && !restrict && !apkConfirmed && LocalSafety.isApk(fileName, mimeType)) {
+            new AlertDialog.Builder(activity, resourcesProvider)
+                    .setTitle(LocaleController.getString(R.string.LocalSafetyApkTitle))
+                    .setMessage(LocaleController.getString(R.string.LocalSafetyApkText))
+                    .setNegativeButton(LocaleController.getString(R.string.Cancel), null)
+                    .setPositiveButton(LocaleController.getString(R.string.Continue), (dialog, which) -> {
+                        try {
+                            openForView(f, fileName, mimeType, activity, resourcesProvider, restrict, true);
+                        } catch (Exception e) {
+                            FileLog.e(e);
+                        }
+                    })
+                    .show();
+            return true;
+        }
         if (f != null && f.exists()) {
             String realMimeType = null;
             Intent intent = new Intent(Intent.ACTION_VIEW);
@@ -4222,6 +4245,10 @@ public class AndroidUtilities {
         }
         String fileName = FileLoader.getAttachFileName(media);
         File f = FileLoader.getInstance(UserConfig.selectedAccount).getPathToAttach(media, true);
+        String mimeType = media instanceof TLRPC.Document ? ((TLRPC.Document) media).mime_type : null;
+        if (LocalSafety.isApk(fileName, mimeType)) {
+            return openForView(f, fileName, mimeType, activity, null, false);
+        }
         if (f != null && f.exists()) {
             String realMimeType = null;
             Intent intent = new Intent(Intent.ACTION_VIEW);

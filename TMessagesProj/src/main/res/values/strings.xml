@@ -1388,6 +1388,13 @@
     <string name="AttachMediaVideoDeselected">Video deselected.</string>
     <string name="AttachMediaDragHint">Drag media to reorder</string>
     <string name="ChatAdmin">admin</string>
+    <string name="LocalSafetyApkTitle">Android app file</string>
+    <string name="LocalSafetyApkText">APK files can install apps on Android. Malicious apps can steal information. Continue only if you expected this file and verified its source. This warning does not mean the file is malware.</string>
+    <string name="LocalSafetyLinkTitle">Check this link</string>
+    <string name="LocalSafetyLinkLogin">This address includes a login part before its destination, which can hide the actual website. Check the destination before continuing. This does not mean the link is malicious.</string>
+    <string name="LocalSafetyLinkDirection">This address contains hidden text direction controls, which can disguise its destination. Check the destination before continuing. This does not mean the link is malicious.</string>
+    <string name="LocalSafetyLinkMixed">This website name mixes letters from different alphabets that can look alike. Check the destination before continuing. This does not mean the link is malicious.</string>
+    <string name="LocalSafetyDestination">Destination: %1$s</string>
     <string name="ApkRestricted">APK installation is restricted for this app. You can enable this in system settings.</string>
     <string name="UnreadMessages">Unread Messages</string>
     <string name="SearchStickersHint">Search sticker sets</string>
